@@ -6,11 +6,13 @@ const mainPiece = document.getElementById('mainPiece');
 const m = mainPiece.getContext('2d');
 const blocks = document.getElementById('blocks');
 const b = blocks.getContext('2d');
-const debuggerCanvas = document.getElementById("debugger");
+const debuggerCanvas = document.getElementById("overlay");
 const dC = debuggerCanvas.getContext('2d');
 
 document.addEventListener("keydown", keyPush);
 
+debuggerCanvas.width = innerWidth;
+debuggerCanvas.height = innerHeight;
 grid.width = innerWidth;
 grid.height = innerHeight;
 uiElement.width = innerWidth;
@@ -37,13 +39,16 @@ var queueOffsetX = 0;
 var queueOffsetY = 0;
 var queueSizeX = 0;
 var queueSizeY = 0;
-var defaultX = 4; var defaultY = 18;
+var queueGap = 0;
+var defaultX = 4; var defaultY = 19;
 
 // game variables
 
 var loop = true;
+var canHold = true;
+var pause = false;
 var defaultProtection = 2; var protection = defaultProtection;
-var queue = []
+var queue = [];
 
 // future variables
 
@@ -52,7 +57,9 @@ var block;
 
 //
 
-var background = "#ff8f98";
+var background = ui.createLinearGradient(0, 0, innerWidth, innerHeight);
+background.addColorStop(0, '#0093E9');
+background.addColorStop(1, '#80D0C7');
 
 const blockOffsets = {
   I: [-1, 1, 2],
@@ -88,35 +95,51 @@ const colors = {
 
     // FUNCTIONS
 
+/*
 function calculateBlockSize(blockType)
 {
     let size = [1, 1];
 
+    let bottomLeft = [0, 0];
+
     let takenX = [];
     let takenY = [];
 
-    for (i = 0; i < blockOffsets[blockType].length; i++)
+    for (let i = 0; i < blockOffsets[blockType].length; i++)
     {
         let localX = XYOffsets[blockType][i][0];
         let localY = XYOffsets[blockType][i][1];
-        if (localX != 0 && binSearch(takenX, localX) == -1) {size[0]++; takenX.push(localX);}
-        if (localY != 0 && binSearch(takenY, localY) == -1) {size[1]++; takenY.push(localY);}
+        if (localX <= bottomLeft[0] && localY <= bottomLeft[1]) {bottomLeft = [localX, localY];}
+        if (localX != 0 && takenX[localX + gridX] != 1) {size[0]++; takenX[localX + gridX] = 1;}
+        if (localY != 0 && takenY[localY + gridY] != 1) {size[1]++; takenY[localY + gridY] = 1;}
     }
 
-    return size;
+    return [size, bottomLeft];
 }
-
-function linSearch(array, target)
+*/
+function calculateBlockSize(blockType)
 {
-    let arraySize = array.length;
-    for (let i = 0; i < arraySize; i++)
+    let size = [1, 1];
+
+    let hashX = [];
+    let hashY = [];
+
+    let boundingBoxOffset = [0, 0, 0, 0];
+
+    for (let i = 0; i < blockOffsets[blockType].length; i++)
     {
-        if (array[i] == target)
-        {
-            return i;
-        }
+        let localIndexX = 1;
+        let localIndexY = 2;
+        let x = XYOffsets[blockType][i][0];
+        let y = XYOffsets[blockType][i][1];
+        let offsetX = Math.sign(x);
+        let offsetY = Math.sign(y);
+        if (offsetX < 0) {localIndexX = 0;}
+        if (offsetY < 0) {localIndexY = 3;}
+        if (x != 0 && hashX[x + gridX] != 1) {size[0]++; hashX[x + gridX] = 1; boundingBoxOffset[localIndexX] += offsetX}
+        if (y != 0 && hashY[y + gridY] != 1) {size[1]++; hashY[y + gridY] = 1; boundingBoxOffset[localIndexY] -= offsetY}
     }
-    return -1;
+    return boundingBoxOffset;
 }
 
 function binSearch(array, target)
@@ -171,7 +194,6 @@ function convertPointToCoord(i, negative = 0)
 	let y = (((i * negative) - x) / gridX);
 	if (x > gridX - 1) { x -= gridX - 1; }
 	if (x < 0) { x += gridX - 1; }
-	if (y > gridY - 1) { y -= gridY - 1; }
 	if (y < 0) { y += gridY - 1; }
 	return [x * negative, y * negative];
 }
@@ -206,12 +228,50 @@ function convertGlobalCToLocalC(x, y, primX, primY)
 	return [x - primX, y - primY];
 }
 
+function drawBlockAtPoint(pointX, pointY, blockType, context = b)
+{
+    let coreOffset = [];
+    let boundingBox = calculateBlockSize(blockType);
+    coreOffset[0] = pointX - (boundingBox[0] * Math.floor(tileSize * 0.5)) - (boundingBox[1] * Math.floor(tileSize * 0.5));
+    coreOffset[1] = pointY - (boundingBox[3] * Math.floor(tileSize * 0.5)) - (boundingBox[2] * Math.floor(tileSize * 0.5));
+    context.fillRect(coreOffset[0], coreOffset[1], tileSize, tileSize);
+    context.beginPath();
+    context.rect(coreOffset[0], coreOffset[1], tileSize, tileSize);
+    context.stroke();
+
+    // rest of blocks
+
+    for (let i = 0; i < blockOffsets[blockType].length; i++)
+    {
+        let localBlock = XYOffsets[blockType][i];
+        let localBlockX = coreOffset[0] + (localBlock[0] * tileSize);
+        let localBlockY = coreOffset[1] - (localBlock[1] * tileSize);
+        context.fillRect(localBlockX, localBlockY, tileSize, tileSize);
+        context.beginPath();
+        context.rect(localBlockX, localBlockY, tileSize, tileSize);
+        context.stroke();
+    }
+}
+
 function generateQueue(i = 3)
 {
+    b.clearRect(queueOffsetX, queueOffsetY, queueSizeX, queueSizeY);
     for (let v = 0; v < i; v++)
     {
         let randomNumber = Math.floor(Math.random() * correspondence.length)
         queue.push(randomNumber)
+    }
+
+    for (let j = 0; j < queue.length; j++)
+    {
+        let localBlockType = correspondence[queue[j]];
+        b.fillStyle = colors[queue[j]];
+
+        let middleX = Math.floor((queueOffsetX + queueOffsetX + queueSizeX) / 2) - Math.floor(tileSize * 0.5);
+        // let middleY = queueOffsetY + (tileSize * 2 * j) + (tileSize * queueGap * (j + 1));
+        let middleY = queueOffsetY + Math.floor(((queueSizeY / queue.length) * (j + 1))) - Math.floor(tileSize * 0.5) - Math.floor((queueSizeY / queue.length) / 2);
+        drawBlockAtPoint(middleX, middleY, localBlockType, b);
+        // b.fillRect(middleX, middleY, tileSize, tileSize);
     }
 }
 
@@ -224,9 +284,10 @@ class Block
         this.x = x;
         this.y = y;
         this.ghostY = ghostY;
-        this.type = 'I';
+        this.type = type;
         this.blocks = [];
-        this.color = 0;
+        this.color = color;
+        this.rotation = 0;
         if (type != null & color != null)
         {
             this.buildBlock(type, color);
@@ -241,7 +302,7 @@ class Block
         this.hold = []; // [blockType, blockColor]
     }
 
-    buildBlock(bT = null, bC = null)
+    buildBlock(bT = null, bC = null, q = true)
     {
         let blockChar = correspondence[queue[0]];
         let color = queue[0];
@@ -258,41 +319,36 @@ class Block
         this.color = color;
     	this.calculateGhost();
     	this.draw();
-    	queue.splice(0, 1);
-    	generateQueue(1);
+    	if (q == true)
+    	{
+        	queue.splice(0, 1);
+        	generateQueue(1);
+    	}
     }
 
     holdBlock()
     {
+        if (canHold == false) {return;}
+        canHold = false;
         let tempHold = [this.type, this.color];
 
         // DRAW NEW HOLD
-        let localBlockSize = calculateBlockSize(this.type);
-        console.log(localBlockSize[0], localBlockSize[1]);
+        let boundingBox = calculateBlockSize(this.type);
+        let blockSize = [-boundingBox[0] + boundingBox[1], -boundingBox[2] + boundingBox[3]];
+
         b.clearRect(holdOffsetX, holdOffsetY, holdSizeX, holdSizeY);
         b.fillStyle = colors[this.color];
-        let originPosition = [Math.floor((holdOffsetX + holdOffsetX + holdSizeX) / 2) - tileSize, Math.floor((holdOffsetY + holdOffsetY + holdSizeY) / 2)];
-        // let originPosition = [Math.floor((holdOffset))];
-        b.fillRect(originPosition[0], originPosition[1], tileSize, tileSize);
-        b.beginPath();
-        b.rect(originPosition[0], originPosition[1], tileSize, tileSize)
-        b.stroke();
-        for (let i = 0; i < this.blocks.length; i++)
-        {
-            let localOffset = XYOffsets[this.type][i];
-            let localX = localOffset[0];
-            let localY = localOffset[1];
-            // these are local coordinates. if passed in -1 it returns (-1, 0);
-            b.fillRect(originPosition[0] + (localX * tileSize), originPosition[1] - (localY * tileSize), tileSize, tileSize);
-            b.beginPath();
-            b.rect(originPosition[0] + (localX * tileSize), originPosition[1] - (localY * tileSize), tileSize, tileSize);
-            b.stroke();
-        }
+        // find bottom core block position
 
+        let centerPosition = [];
+        centerPosition[0] = Math.floor((holdOffsetX + holdOffsetX + holdSizeX) / 2) - Math.floor(tileSize / 2);
+        centerPosition[1] = Math.floor((holdOffsetY + holdOffsetY + holdSizeY) / 2) - Math.floor(tileSize / 2);
+        drawBlockAtPoint(centerPosition[0], centerPosition[1], this.type, b);
+        // rest of function
 
         if (this.hold.length > 0)
         {
-            this.buildBlock(this.hold[0], this.hold[1]);
+            this.buildBlock(this.hold[0], this.hold[1], false);
             this.hold = tempHold;
         }
         else
@@ -363,13 +419,17 @@ class Block
     {
         let coreBlock = convertCoordToPoint(this.x, this.y);
         let rotMatrix = [[], []];
+        let theoreticalRotation = this.rotation;
     	if (cc == true)
     	{
+    	    theoreticalRotation = theoreticalRotation - 1;
+    	    if (theoreticalRotation < 0) {theoreticalRotation += 4;}
     		rotMatrix[0][0] = 0; rotMatrix[0][1] = -1;//rotMatrix[0] = { 0, -1 };
     		rotMatrix[1][0] = 1; rotMatrix[1][1] = 0; //rotMatrix[1] = { 1, 0 };
     	}
     	else
     	{
+    	    theoreticalRotation = (theoreticalRotation + 1) % 4;
     		rotMatrix[0][0] = 0; rotMatrix[0][1] = 1;//rotMatrix[0] = {0, 1};
     		rotMatrix[1][0] = -1; rotMatrix[1][1] = 0; //rotMatrix[1] = { -1, 0 };
     	}
@@ -391,18 +451,17 @@ class Block
             let localPoint = convertCoordToPoint(locRotX, locRotY);
 
             let found = binSearch(gridBlocks.blocks, newPoint);
-            if (found != -1 || newPoint > gridX * gridY + gridX || newCoords[0] < 0 || newCoords[0] >= gridX || newCoords[1] < 0 || newCoords[1] >= gridY)
+            if (found != -1 || newCoords[0] < 0 || newCoords[0] >= gridX || newCoords[1] < 0 || newCoords[1] > gridY)
             {
                 return;
             }
             newPoints.push(localPoint);
     	}
 
-    	for (let j = 0; j < this.blocks.length; j++)
-    	{
-    	    this.blocks[j] = newPoints[j];
-        	this.calculateGhost(gridBlocks);
-    	}
+
+	    this.rotation = theoreticalRotation;
+	    this.blocks = newPoints;
+    	this.calculateGhost(gridBlocks);
     }
 
     solidify(force = false)
@@ -414,6 +473,7 @@ class Block
         {
             gridBlocks.append(this.blocks[i] + coreBlock, this.color);
         }
+        canHold = true;
         this.x = null;
         this.y = null;
         this.blocks = [];
@@ -450,7 +510,7 @@ class Block
     	let theoreticalPoint = convertCoordToPoint(theoreticalX, theoreticalY);
     	let coreBlock = convertCoordToPoint(this.x, this.y);
     	// first check for grid collision with core block
-    	if (theoreticalX < 0 || theoreticalX > gridX - 1 || theoreticalY < 0 || theoreticalY > gridY - 1)
+    	if (theoreticalX < 0 || theoreticalX > gridX - 1 || theoreticalY < 0 || theoreticalY > gridY)
     	{
     	    if (direction == 0) {this.solidify();}
             return;
@@ -471,7 +531,7 @@ class Block
             let globalCoords = convertPointToCoord(globalBlockPoint, 1);
             let theoreticalBX = globalCoords[0] + h; let theoreticalBY = globalCoords[1] + k;
             let theoreticalBlockPoint = convertCoordToPoint(theoreticalBX, theoreticalBY);
-            if (theoreticalBX < 0 || theoreticalBX > gridX - 1 || theoreticalBY < 0 || theoreticalBY > gridY - 1)
+            if (theoreticalBX < 0 || theoreticalBX > gridX - 1 || theoreticalBY < 0 || theoreticalBY > gridY)
         	{
         	    if (direction == 0) {this.solidify();}
                 return;
@@ -501,19 +561,17 @@ class Block
         m.globalAlpha = 1;
         m.fillRect((this.x) * tileSize + offsetX, (grid.height - offsetY) - ((this.y + 1) * tileSize), tileSize, tileSize);
         // now draw rest
+        m.fillStyle = colors[this.color];
         let corePos = convertCoordToPoint(this.x, this.y);
         for (let i = 0; i < this.blocks.length; i++)
         {
             let globalPos = convertLocalPToGlobalP(this.blocks[i], corePos);
             let globalCoords = convertPointToCoord(globalPos, 1);
+            if (globalCoords[1] > gridY - 1) { continue; }
             m.fillRect((globalCoords[0]) * tileSize + offsetX, (grid.height - offsetY) - ((globalCoords[1] + 1) * tileSize), tileSize, tileSize);
         }
 
         // now draw ghost block
-
-        dC.clearRect(0, 0, 1920, 1080);
-        dC.font = '50px serif';
-        dC.strokeText(this.ghostY, 10, 50);
         let ghostCoreCoords = [this.x, this.ghostY];
         let ghostCorePos = convertCoordToPoint(this.x, this.ghostY);
         m.globalAlpha = 0.5;
@@ -546,11 +604,6 @@ class restedBlocks
             b.globalAlpha = 1;
             b.fillRect(coords[0] * tileSize + offsetX, (grid.height - offsetY) - ((coords[1] + 1) * tileSize), tileSize, tileSize);
         }
-    }
-
-    refreshQueue()
-    {
-
     }
 
     clearLine()
@@ -633,8 +686,9 @@ holdSizeX = Math.floor(tileSize * 4.5);
 holdSizeY = Math.floor(tileSize * 4.5);
 queueOffsetX = offsetX + Math.floor(tileSize * 0.5) + (tileSize * gridX);
 queueOffsetY = offsetY;
-queueSizeX = Math.floor(tileSize * 4.5);
-queueSizeY = Math.floor(tileSize * 8);
+queueGap = 0.5;
+queueSizeX = Math.floor(tileSize * 5.5)
+queueSizeY = Math.floor(tileSize * 5.5) + Math.floor(queueGap * 5.5 * tileSize);
 
     // MAKE UI // // // //
 
@@ -680,22 +734,26 @@ function setup()
     block.hold = [];
     gridBlocks.draw();
     block.draw();
-    setTimeout(gameLoop(), 1000);
+    setTimeout(gameLoop, 1000);
 }
 
 function gameLoop()
 {
+    // LOOP
+    if (loop == true)
+    {
+        setTimeout(gameLoop, 1000);
+    }
+    else
+    {
+        return;
+    }
     // SCRIPT
 
 
     block.move(0);
 
     // DRAW
-    // LOOP
-    if (loop == true)
-    {
-        setTimeout(gameLoop, 1000);
-    }
 }
 setup();
 
@@ -705,39 +763,70 @@ let solidID;
 
 function keyPush(evnt)
 {
-    switch(evnt.keyCode)
+    if (pause == false && loop == true)
     {
-        case 37:
-            // left
-            block.move(1);
-            block.draw();
-            break;
-        case 38:
-            // up
-            block.rotate(true);
-            block.draw();
-            break;
-        case 39:
-            block.move(2);
-            block.draw();
-            // right
-            break;
-        case 40:
-            block.move(0);
-            gridBlocks.draw();
-            block.draw();
-            // down
-            break;
-        case 69:
-            block.solidify(true);
-            break;
-        case 32:
-            block.y = block.ghostY;
-            block.solidify(true);
-            break;
-        case 67:
-            block.holdBlock();
-            break;
+        switch(evnt.keyCode)
+        {
+            case 37:
+                // left
+                block.move(1);
+                block.draw();
+                break;
+            case 38:
+                // up
+                block.rotate(true);
+                block.draw();
+                break;
+            case 17:
+                // right ctrl
+                block.rotate(false);
+                block.draw();
+            case 39:
+                block.move(2);
+                block.draw();
+                // right
+                break;
+            case 40:
+                block.move(0);
+                gridBlocks.draw();
+                block.draw();
+                // down
+                break;
+            case 69:
+                block.solidify(true);
+                break;
+            case 32:
+                block.y = block.ghostY;
+                block.solidify(true);
+                break;
+            case 67:
+                block.holdBlock();
+                break;
+            case 27:
+                pause = true;
+                loop = false;
+                dC.globalAlpha = 0.5;
+                dC.fillStyle = "gray";
+                // dC.fillRect(0, 0, innerWidth, innerHeight);
+                break;
+            case 82:
+                location.reload();
+                break;
+        }
+    }
+    else
+    {
+        switch(evnt.keyCode)
+        {
+            case 27:
+                pause = false;
+                loop = true;
+                dC.clearRect(0, 0, grid.width, grid.height);
+                gameLoop();
+                break;
+            case 82:
+                location.reload();
+                break;
+        }
     }
 }
-
