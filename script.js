@@ -40,13 +40,15 @@ var queueOffsetY = 0;
 var queueSizeX = 0;
 var queueSizeY = 0;
 var queueGap = 0;
-var defaultX = 4; var defaultY = 19;
+var defaultX = Math.floor(gridX / 2); var defaultY = gridY - 1;
 
 // game variables
 
 var loop = true;
 var canHold = true;
+var dropping = false;
 var pause = false;
+var delay = 1000; var interval = 50;
 var defaultProtection = 2; var protection = defaultProtection;
 var queue = [];
 
@@ -483,6 +485,13 @@ class Block
         this.buildBlock();
     }
 
+    softDrop()
+    {
+
+        this.y = block.ghostY;
+        this.draw();
+    }
+
     move(direction)
     {
         /*
@@ -546,6 +555,7 @@ class Block
                 }
             }
         }
+        protection = defaultProtection;
         this.x = theoreticalX; this.y = theoreticalY;
         this.draw();
     	this.calculateGhost();
@@ -556,7 +566,7 @@ class Block
     draw()
     {
         m.clearRect(0, 0, grid.width, grid.height);
-        m.fillStyle = colors[this.color];
+        m.fillStyle = "gray";
         // first draw origin block
         m.globalAlpha = 1;
         m.fillRect((this.x) * tileSize + offsetX, (grid.height - offsetY) - ((this.y + 1) * tileSize), tileSize, tileSize);
@@ -628,6 +638,8 @@ class restedBlocks
                 }
                 else
                 {
+                    // line cleared
+                    if (delay >= 450) { delay -= interval; }
                     this.blocks.splice(i, gridX);
                     this.blockColors.splice(i, gridX);
                     for (let m = i; m < this.blocks.length; m++)
@@ -734,7 +746,8 @@ function setup()
     block.hold = [];
     gridBlocks.draw();
     block.draw();
-    setTimeout(gameLoop, 1000);
+    delay = 1000;
+    setTimeout(gameLoop, delay);
 }
 
 function gameLoop()
@@ -742,7 +755,7 @@ function gameLoop()
     // LOOP
     if (loop == true)
     {
-        setTimeout(gameLoop, 1000);
+        setTimeout(gameLoop, delay);
     }
     else
     {
@@ -787,9 +800,10 @@ function keyPush(evnt)
                 // right
                 break;
             case 40:
-                block.move(0);
+                // block.move(0);
+                block.softDrop();
                 gridBlocks.draw();
-                block.draw();
+                // block.draw();
                 // down
                 break;
             case 69:
