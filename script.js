@@ -566,7 +566,7 @@ class Block
     draw()
     {
         m.clearRect(0, 0, grid.width, grid.height);
-        m.fillStyle = "gray";
+        m.fillStyle = this.color;
         // first draw origin block
         m.globalAlpha = 1;
         m.fillRect((this.x) * tileSize + offsetX, (grid.height - offsetY) - ((this.y + 1) * tileSize), tileSize, tileSize);
