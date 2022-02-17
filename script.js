@@ -577,9 +577,6 @@ class Block
                     this.rotation = theoreticalRotation;
                     this.blocks = newPoints;
                     this.calculateGhost(gridBlocks);
-                    dC.clearRect(0, 0, innerWidth, innerHeight);
-                    dC.font = '40px arial';
-                    dC.strokeText(localOffset[index], 50, 100);
                     break;
                 }
             }
