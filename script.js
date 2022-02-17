@@ -40,7 +40,7 @@ var queueOffsetY = 0;
 var queueSizeX = 0;
 var queueSizeY = 0;
 var queueGap = 0;
-var defaultX = Math.floor(gridX / 2); var defaultY = gridY - 1;
+var defaultX = Math.ceil((gridX / 2) - 1); var defaultY = gridY - 1;
 
 // game variables
 
@@ -83,16 +83,30 @@ const XYOffsets = {
     Z: [[-1, 1], [0, 1], [1, 0]]
 };
 
+var JLSTZ = [
+    [[-1, 0], [-1, 1], [0, -2], [-1, -2]],
+    [[1, 0], [1, -1], [0, 2], [1, 2]],
+    [[1, 0], [1, 1], [0, -2], [1, -2]],
+    [[-1, 0], [-1, -1], [0, 2], [-1, 2]]
+]
+
+var IChecker = [
+    [[-2, 0], [1, 0], [-2 , -1], [1, 2]],
+    [[-1, 0], [2, 0], [-1, 2], [2, -1]],
+    [[2, 0], [-1, 0], [2, 1], [-1, -2]],
+    [[1, 0], [-2, 0], [1, -2], [-2, 1]]
+]
+
 const correspondence = ['I', 'J', 'L', 'O', 'S', 'T', 'Z'];
 
 const colors = {
-  0: 'blue',
-  1: 'DarkBlue',
-  2: 'orange',
-  3: 'yellow',
-  4: 'green',
-  5: 'purple',
-  6: 'red'
+  0: '#00ffff', // blue
+  1: '#0000ff', // dark blue
+  2: '#ff7f00', // orange
+  3: '#ffff00', // yellow
+  4: '#00ff00', // green
+  5: '#800080', // purple
+  6: '#ff0000' // red
 };
 
     // FUNCTIONS
@@ -255,13 +269,62 @@ function drawBlockAtPoint(pointX, pointY, blockType, context = b)
     }
 }
 
-function generateQueue(i = 3)
+function collisionCheck(offsets, x, y, blockClass = gridBlocks)
+{
+    if (blockClass == null)
+    {
+        return false;
+    }
+    let coreBlock = (y * gridX) + x;
+    let blockArray = blockClass.blocks;
+    if (binSearch(blockArray, coreBlock) != -1)
+    {
+        return true;
+    }
+    for (let i = 0; i < offsets.length; i++)
+    {
+        let localBlock = offsets[i];
+        if (binSearch(blockArray, localBlock + coreBlock) != -1)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+function collisionCheckXY(offsets, x, y, blockClass = gridBlocks) // use this for the project thing
+{
+    if (blockClass == null)
+    {
+        return false;
+    }
+    let coreBlock = (y * gridX) + x;
+    let blockArray = blockClass.blocks;
+    if (binSearch(blockArray, coreBlock) != -1 || x < 0 || x >= gridX || y < 0)
+    {
+        return true;
+    }
+    for (let i = 0; i < offsets.length; i++)
+    {
+        let localCoord = offsets[i];
+        let globalCoord = [localCoord[0] + x, localCoord[1] + y];
+        let localBlock = (localCoord[1] * gridX) + localCoord[0];
+        if (binSearch(blockArray, localBlock + coreBlock) != -1 || globalCoord[0] < 0 || globalCoord[0] >= gridX || globalCoord[1] < 0)
+        {
+            return  true;
+        }
+    }
+    return false;
+}
+
+function generateQueue(i = 3, randomNumber = Math.floor(Math.random() * correspondence.length))
 {
     b.clearRect(queueOffsetX, queueOffsetY, queueSizeX, queueSizeY);
     for (let v = 0; v < i; v++)
     {
-        let randomNumber = Math.floor(Math.random() * correspondence.length)
-        queue.push(randomNumber)
+        // randomNumber = 0;
+        queue.push(randomNumber);
+        randomNumber = Math.floor(Math.random() * correspondence.length);
     }
 
     for (let j = 0; j < queue.length; j++)
@@ -314,18 +377,32 @@ class Block
             color = bC;
         }
         protection = defaultProtection;
-        this.type = blockChar;
-        this.x = defaultX;
-        this.y = defaultY;
-        const test = Object.assign(this.blocks, blockOffsets[this.type]);
-        this.color = color;
-    	this.calculateGhost();
-    	this.draw();
-    	if (q == true)
-    	{
-        	queue.splice(0, 1);
-        	generateQueue(1);
-    	}
+        if (collisionCheck(blockOffsets[blockChar], defaultX, defaultY) == false)
+        {
+            this.type = blockChar;
+            this.x = defaultX;
+            this.y = defaultY;
+            this.rotation = 0;
+            const test = Object.assign(this.blocks, blockOffsets[this.type]);
+            this.color = color;
+        	this.calculateGhost();
+        	this.draw();
+        	if (q == true)
+        	{
+            	queue.splice(0, 1);
+            	generateQueue(1);
+        	}
+        }
+        else
+        {
+            // game end
+            loop = false;
+            ui.clearRect(0, 0, innerWidth, innerHeight);
+            g.clearRect(0, 0, innerWidth, innerHeight);
+            m.clearRect(0, 0, innerWidth, innerHeight);
+            b.clearRect(0, 0, innerWidth, innerHeight);
+            dc.clearRect(0, 0, innerWidth, innerHeight);
+        }
     }
 
     holdBlock()
@@ -335,8 +412,6 @@ class Block
         let tempHold = [this.type, this.color];
 
         // DRAW NEW HOLD
-        let boundingBox = calculateBlockSize(this.type);
-        let blockSize = [-boundingBox[0] + boundingBox[1], -boundingBox[2] + boundingBox[3]];
 
         b.clearRect(holdOffsetX, holdOffsetY, holdSizeX, holdSizeY);
         b.fillStyle = colors[this.color];
@@ -413,30 +488,51 @@ class Block
             let lowestY = Math.floor((coreBlock + lowestBlock) / gridX);
             greatest = this.y - lowestY;
         }
+        if (this.ghostY != greatest)
+        {
+            protection = defaultProtection;
+        }
         this.ghostY = greatest;
 
     }
 
-    rotate(cc)
+    rotate(co)
     {
         let coreBlock = convertCoordToPoint(this.x, this.y);
         let rotMatrix = [[], []];
         let theoreticalRotation = this.rotation;
-    	if (cc == true)
+        let localOffset = JLSTZ;
+        let index = 0; let multiplier = 1;
+
+        if (this.type == "I")
+        {
+            localOffset = IChecker
+        }
+        else if (this.type == "O")
+        {
+            return;
+        }
+
+    	if (co == true)
     	{
-    	    theoreticalRotation = theoreticalRotation - 1;
-    	    if (theoreticalRotation < 0) {theoreticalRotation += 4;}
-    		rotMatrix[0][0] = 0; rotMatrix[0][1] = -1;//rotMatrix[0] = { 0, -1 };
+            index = this.rotation;
+    	    theoreticalRotation = (theoreticalRotation + 1) % 4;
+    		rotMatrix[0][0] = 0; rotMatrix[0][1] = -1; //rotMatrix[0] = { 0, -1 };
     		rotMatrix[1][0] = 1; rotMatrix[1][1] = 0; //rotMatrix[1] = { 1, 0 };
     	}
     	else
     	{
-    	    theoreticalRotation = (theoreticalRotation + 1) % 4;
-    		rotMatrix[0][0] = 0; rotMatrix[0][1] = 1;//rotMatrix[0] = {0, 1};
+    	    theoreticalRotation = theoreticalRotation - 1;
+    	    if (theoreticalRotation < 0) {theoreticalRotation += 4;}
+    	    multiplier = -1;
+    	    index = theoreticalRotation;
+    		rotMatrix[0][0] = 0; rotMatrix[0][1] = 1; //rotMatrix[0] = {0, 1};
     		rotMatrix[1][0] = -1; rotMatrix[1][1] = 0; //rotMatrix[1] = { -1, 0 };
     	}
 
         let newPoints = [];
+        let newLocalVectors = [];
+        let gateOne = true;
 
     	for (let i = 0; i < this.blocks.length; i++)
     	{
@@ -455,15 +551,39 @@ class Block
             let found = binSearch(gridBlocks.blocks, newPoint);
             if (found != -1 || newCoords[0] < 0 || newCoords[0] >= gridX || newCoords[1] < 0 || newCoords[1] > gridY)
             {
-                return;
+                gateOne = false;
             }
             newPoints.push(localPoint);
+            newLocalVectors.push([locRotX, locRotY]);
     	}
 
-
-	    this.rotation = theoreticalRotation;
-	    this.blocks = newPoints;
-    	this.calculateGhost(gridBlocks);
+        if (gateOne == true)
+        {
+    	    this.rotation = theoreticalRotation;
+    	    this.blocks = newPoints;
+        	this.calculateGhost(gridBlocks);
+        }
+        else
+        {
+            // apply kicks
+            for (let j = 0; j < localOffset[index].length; j++)
+            {
+                let kickedCoreBlock = [this.x + (localOffset[index][j][0] * multiplier), this.y + (localOffset[index][j][1] * multiplier)];
+                let checkCollision = collisionCheckXY(newLocalVectors, kickedCoreBlock[0], kickedCoreBlock[1], gridBlocks);
+                if (checkCollision == false)
+                {
+                    this.x = kickedCoreBlock[0];
+                    this.y = kickedCoreBlock[1];
+                    this.rotation = theoreticalRotation;
+                    this.blocks = newPoints;
+                    this.calculateGhost(gridBlocks);
+                    dC.clearRect(0, 0, innerWidth, innerHeight);
+                    dC.font = '40px arial';
+                    dC.strokeText(localOffset[index], 50, 100);
+                    break;
+                }
+            }
+        }
     }
 
     solidify(force = false)
@@ -555,7 +675,6 @@ class Block
                 }
             }
         }
-        protection = defaultProtection;
         this.x = theoreticalX; this.y = theoreticalY;
         this.draw();
     	this.calculateGhost();
@@ -566,13 +685,19 @@ class Block
     draw()
     {
         m.clearRect(0, 0, grid.width, grid.height);
+        m.shadowColor = colors[this.color];
         m.fillStyle = colors[this.color];
         // first draw origin block
         m.globalAlpha = 1;
+
+        m.shadowBlur = 0;
+
         m.fillRect((this.x) * tileSize + offsetX, (grid.height - offsetY) - ((this.y + 1) * tileSize), tileSize, tileSize);
         // now draw rest
         m.fillStyle = colors[this.color];
+        m.shadowBlur = 0;
         let corePos = convertCoordToPoint(this.x, this.y);
+
         for (let i = 0; i < this.blocks.length; i++)
         {
             let globalPos = convertLocalPToGlobalP(this.blocks[i], corePos);
@@ -581,6 +706,7 @@ class Block
             m.fillRect((globalCoords[0]) * tileSize + offsetX, (grid.height - offsetY) - ((globalCoords[1] + 1) * tileSize), tileSize, tileSize);
         }
 
+        m.shadowBlur = 15;
         // now draw ghost block
         let ghostCoreCoords = [this.x, this.ghostY];
         let ghostCorePos = convertCoordToPoint(this.x, this.ghostY);
@@ -709,6 +835,7 @@ ui.fillRect(0, 0, grid.width, grid.height);
 ui.fillStyle = "#ffffff";
 ui.fillRect(offsetX, offsetY, gridX * tileSize, gridY * tileSize);
 
+///*
 for (let x = 0; x < gridX; x++)
 {
     for (let y = 0; y < gridY; y++)
@@ -717,8 +844,19 @@ for (let x = 0; x < gridX; x++)
         g.globalAlpha = 1;
         g.rect(x * tileSize + offsetX, y * tileSize + offsetY, tileSize, tileSize);
         g.stroke();
+        g.stroke();
+        g.stroke();
+        g.stroke();
     }
 }
+//*/
+
+/*
+g.beginPath();
+g.globalAlpha = 1;
+g.rect(offsetX, offsetY, tileSize * gridX, tileSize * gridY);
+g.stroke();
+//*/
 
 // now hold
 
@@ -794,6 +932,7 @@ function keyPush(evnt)
                 // right ctrl
                 block.rotate(false);
                 block.draw();
+                break;
             case 39:
                 block.move(2);
                 block.draw();
@@ -844,3 +983,4 @@ function keyPush(evnt)
         }
     }
 }
+
