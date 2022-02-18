@@ -975,7 +975,7 @@ function keyPush(evnt)
                 gameLoop();
                 break;
             case 82:
-                location.reload();
+                location.reload(); //
                 break;
         }
     }
