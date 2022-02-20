@@ -707,7 +707,7 @@ class Block
         // now draw ghost block
         let ghostCoreCoords = [this.x, this.ghostY];
         let ghostCorePos = convertCoordToPoint(this.x, this.ghostY);
-        m.globalAlpha = 0.5;
+        m.globalAlpha = 0.3;
         m.fillRect((this.x) * tileSize + offsetX, (grid.height - offsetY) - ((ghostCoreCoords[1] + 1) * tileSize), tileSize, tileSize);
         // rest of ghost blocks
         for (let i = 0; i < this.blocks.length; i++)
@@ -725,6 +725,11 @@ class restedBlocks
     {
         this.blocks = blocks;
         this.blockColors = blockColors;
+        if (blocks.length > 0 && blockColors.length == 0)
+        {
+            this.blockColors = blocks;
+            this.blockColors.fill(0, blocks.length);
+        }
     }
 
     draw()
@@ -975,7 +980,7 @@ function keyPush(evnt)
                 gameLoop();
                 break;
             case 82:
-                location.reload(); //
+                location.reload();
                 break;
         }
     }
