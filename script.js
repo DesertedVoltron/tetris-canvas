@@ -24,7 +24,7 @@ blocks.height = innerHeight;
 
     // VARIABLES
 
-var gridX = 10;
+var gridX = 11;
 var gridY = 20;
 var tileSize;
 var offsetX = 0;
