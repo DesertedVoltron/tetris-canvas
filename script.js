@@ -317,14 +317,25 @@ function collisionCheckXY(offsets, x, y, blockClass = gridBlocks) // use this fo
     return false;
 }
 
-function generateQueue(i = 3, randomNumber = Math.floor(Math.random() * correspondence.length))
+let availableBlocks = [1, 2, 3, 4, 5, 6, 7]
+
+function generateQueue(i = 3, randomNumberIndex = Math.floor(Math.random() * availableBlocks.length), randomNumber = availableBlocks[randomNumberIndex])
 {
     b.clearRect(queueOffsetX, queueOffsetY, queueSizeX, queueSizeY);
     for (let v = 0; v < i; v++)
     {
         // randomNumber = 0;
         queue.push(randomNumber);
-        randomNumber = Math.floor(Math.random() * correspondence.length);
+	availableBlocks.splice(randomNumberIndex,1)
+	    
+	if (availableBlocks.length = 0)
+	{
+		availableBlocks = [1, 2, 3, 4, 5, 6, 7]
+	}
+	
+	randomNumberIndex = Math.floor(Math.random() * availableBlocks.length)
+        randomNumber = availableBlocks[randomNumberIndex];
+	
     }
 
     for (let j = 0; j < queue.length; j++)
@@ -930,8 +941,8 @@ function keyPush(evnt)
                 block.rotate(true);
                 block.draw();
                 break;
-            case 17:
-                // right ctrl
+            case 122:
+                // z
                 block.rotate(false);
                 block.draw();
                 break;
