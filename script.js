@@ -317,25 +317,27 @@ function collisionCheckXY(offsets, x, y, blockClass = gridBlocks) // use this fo
     return false;
 }
 
-let availableBlocks = [1, 2, 3, 4, 5, 6, 7]
+var availableBlocks = [0, 1, 2, 3, 4, 5, 6]
+var avLength = 7
 
-function generateQueue(i = 3, randomNumberIndex = Math.floor(Math.random() * availableBlocks.length), randomNumber = availableBlocks[randomNumberIndex])
+function generateQueue(i = 3, randomNumberIndex = Math.floor(Math.random() * (avLength - 1)), randomNumber = availableBlocks[randomNumberIndex])
 {
     b.clearRect(queueOffsetX, queueOffsetY, queueSizeX, queueSizeY);
     for (let v = 0; v < i; v++)
     {
         // randomNumber = 0;
         queue.push(randomNumber);
-	availableBlocks.splice(randomNumberIndex,1)
-	    
-	if (availableBlocks.length = 0)
-	{
-		availableBlocks = [1, 2, 3, 4, 5, 6, 7]
-	}
-	
-	randomNumberIndex = Math.floor(Math.random() * availableBlocks.length)
+				availableBlocks.splice(randomNumberIndex, 1)
+        avLength--
+        if (avLength == 0)
+        {
+          availableBlocks = [0, 1, 2, 3, 4, 5, 6]
+          avLength = 7
+        }
+
+		randomNumberIndex = Math.floor(Math.random() * (avLength - 1))
         randomNumber = availableBlocks[randomNumberIndex];
-	
+
     }
 
     for (let j = 0; j < queue.length; j++)
@@ -941,7 +943,7 @@ function keyPush(evnt)
                 block.rotate(true);
                 block.draw();
                 break;
-            case 122:
+            case 90:
                 // z
                 block.rotate(false);
                 block.draw();
@@ -973,7 +975,7 @@ function keyPush(evnt)
                 loop = false;
                 dC.globalAlpha = 0.5;
                 dC.fillStyle = "gray";
-                // dC.fillRect(0, 0, innerWidth, innerHeight);
+                dC.fillRect(0, 0, innerWidth, innerHeight);
                 break;
             case 82:
                 location.reload();
@@ -996,4 +998,3 @@ function keyPush(evnt)
         }
     }
 }
-
