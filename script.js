@@ -48,7 +48,7 @@ var loop = true;
 var canHold = true;
 var dropping = false;
 var pause = false;
-var delay = 1000; var interval = 50;
+var delay = 1000; var interval = 75;
 var defaultProtection = 2; var protection = defaultProtection;
 var queue = [];
 
